@@ -10,6 +10,8 @@ jobs:
     steps:
       - name: Checkout commit
         uses: actions/checkout@master
+        with:
+          submodules: recursive
 
       - name: Set up Python 3.8
         uses: actions/setup-python@master
@@ -32,6 +34,8 @@ jobs:
     steps:
       - name: Checkout commit
         uses: actions/checkout@master
+        with:
+          submodules: recursive
 
       - name: Set up Python 3.8
         uses: actions/setup-python@master
@@ -55,6 +59,8 @@ jobs:
     steps:
       - name: Checkout commit
         uses: actions/checkout@master
+        with:
+          submodules: recursive
 
       - name: Set up Python 3.8
         uses: actions/setup-python@master
