@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -18,6 +19,8 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/widget"
 )
+
+var execFilePath string
 
 type S3SConf struct {
 	Api_key       string `json:"api_key"`
@@ -53,6 +56,8 @@ func prints3sOutput(r io.Reader) {
 }
 
 func monitor(bindStr binding.String) {
+	// TODO: change s3s binary by GOOS
+	// TODO: need filepath.Join(execFilePath,<s3s-binary>)
 	s3s := exec.Command("./bin/s3s", "-M")
 	mon, _ := s3s.StdoutPipe()
 	s3s.Start()
@@ -65,6 +70,8 @@ func monitor(bindStr binding.String) {
 }
 
 func setStatinkAPI(apiKey string) {
+	// TODO: change s3s binary by GOOS
+	// TODO: need filepath.Join(execFilePath,<s3s-binary>)
 	s3s := exec.Command("./bin/s3s")
 	stdin, _ := s3s.StdinPipe()
 	io.WriteString(stdin, apiKey)
@@ -76,6 +83,8 @@ func setStatinkAPI(apiKey string) {
 func obtainTokens(ch chan string) {
 	// stage.2.1 login url generation / open browser
 	// -> authLink
+	// TODO: change s3s binary by GOOS
+	// TODO: need filepath.Join(execFilePath,<s3s-binary>)
 	s3sRec := exec.Command("./bin/s3s", "-r")
 	stdin, _ := s3sRec.StdinPipe()
 	stdout, _ := s3sRec.StdoutPipe()
@@ -111,7 +120,7 @@ func obtainTokens(ch chan string) {
 
 func validateConfig() S3SConf {
 	var myConf S3SConf
-	configPath := "./bin/config.txt"
+	configPath := filepath.Join(execFilePath, "bin/config.txt")
 	_, err := os.Stat(configPath)
 	if err != nil {
 		log.Println(err)
@@ -131,6 +140,9 @@ func validateConfig() S3SConf {
 }
 
 func main() {
+	execFilePath, _ = os.Executable()
+	// TODO: validate s3s binary exist?
+
 	Conf := validateConfig()
 	if Conf.Api_key == "" {
 		log.Println("API_Key is blank")
@@ -139,37 +151,51 @@ func main() {
 		log.Println("Gtoken is blank")
 	}
 
+	// for input Nintendo Switch Online URI
 	NSOch := make(chan string)
+	// for display s3s's stdout in GUI
 	bindStdout := binding.NewString()
 
+	// GUI with fyne-io
 	a := app.New()
 	w := a.NewWindow("octo-pass")
 	w.Resize(fyne.NewSize(640, 480))
 
 	apiInput := widget.NewEntry()
 	apiInput.SetPlaceHolder("Input stat.ink API")
+	apiButton := widget.NewButton("stat.ink API", func() {
+		setStatinkAPI(apiInput.Text)
+		go obtainTokens(NSOch)
+	})
 
 	NSOInput := widget.NewEntry()
 	NSOInput.SetPlaceHolder("Input Nintendo Online Service URI")
-
+	NSOInputButton := widget.NewButton("Nintendo Online URI", func() {
+		NSOch <- NSOInput.Text
+	})
 	monStdout := widget.NewEntryWithData(bindStdout)
 	monStdout.MultiLine = true
 
+	// already configured -> disable button
+	if Conf.Api_key != "" {
+		apiButton.Disable()
+	}
+	if Conf.Gtoken != "" {
+		NSOInputButton.Disable()
+	}
+
 	content := container.NewVBox(
 		apiInput,
-		widget.NewButton("stat.ink API", func() {
-			setStatinkAPI(apiInput.Text)
-			go obtainTokens(NSOch)
-		}),
+		apiButton,
 		NSOInput,
-		widget.NewButton("Nintendo Online URI", func() {
-			NSOch <- NSOInput.Text
-		}),
+		NSOInputButton,
 		widget.NewButton("Monitoring", func() {
 			go monitor(bindStdout)
 		}),
-		monStdout,
+		// FIXME: poor display now. and if exec time, another window shows log...
+		// monStdout,
 	)
+
 	w.SetContent(content)
 	w.ShowAndRun()
 }
